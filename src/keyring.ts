@@ -3,23 +3,19 @@ import type {
   KeyringAccount,
   KeyringRequest,
   SubmitRequestResponse,
-} from '@metamask/keyring-api';
+} from "@metamask/keyring-api";
 import {
   EthAccountType,
   EthMethod,
   emitSnapKeyringEvent,
-} from '@metamask/keyring-api';
-import { KeyringEvent } from '@metamask/keyring-api/dist/events';
-import { type Json } from '@metamask/utils';
-import { v4 as uuid } from 'uuid';
+} from "@metamask/keyring-api";
+import { KeyringEvent } from "@metamask/keyring-api/dist/events";
+import { type Json } from "@metamask/utils";
+import { v4 as uuid } from "uuid";
 
-import { saveState } from './stateManagement';
-import {
-  isEvmChain,
-  isUniqueAddress,
-  throwError,
-} from './util';
-import packageInfo from '../package.json';
+import { saveState } from "./stateManagement";
+import { isEvmChain, isUniqueAddress, throwError } from "./util";
+
 
 export type KeyringState = {
   wallets: Record<string, Wallet>;
@@ -31,7 +27,6 @@ export type Wallet = {
   account: KeyringAccount;
   hdPath: string;
 };
-
 
 export class SimpleKeyring implements Keyring {
   #state: KeyringState;
@@ -52,9 +47,8 @@ export class SimpleKeyring implements Keyring {
   }
 
   async createAccount(
-    options: Record<string, Json> = {},
+    options: Record<string, Json> = {}
   ): Promise<KeyringAccount> {
-    console.log('createAccount');
 
     try {
       const address: string = options.address as string;
@@ -83,15 +77,13 @@ export class SimpleKeyring implements Keyring {
         hdPath: options.hdPath as string,
       };
 
-      console.log(' options.hdPath  ', options.hdPath);
-
       const accountIdx = this.#state.wallets
         ? Object.keys(this.#state.wallets).length
         : 0;
 
       await this.#emitEvent(KeyringEvent.AccountCreated, {
         account,
-        accountNameSuggestion: 'Gardio Account ' + accountIdx,
+        accountNameSuggestion: "Gardio Account " + accountIdx,
       });
 
       await this.#saveState();
@@ -143,7 +135,6 @@ export class SimpleKeyring implements Keyring {
   }
 
   async listRequests(): Promise<KeyringRequest[]> {
-    console.error('listRequests');
     return Object.values(this.#state.pendingRequests);
   }
 
@@ -159,9 +150,8 @@ export class SimpleKeyring implements Keyring {
 
   async approveRequest(
     id: string,
-    data?: Record<string, Json> | string,
+    data?: Record<string, Json> | string
   ): Promise<void> {
-    console.log('approveRequest');
 
     const { request } =
       this.#state.pendingRequests[id] ??
@@ -171,10 +161,9 @@ export class SimpleKeyring implements Keyring {
 
     if (request.method == EthMethod.PersonalSign) {
       // If data is an object and has a "data" key, return that key's value (assuming it's a string)
-      if (typeof data === 'object' && data !== null && 'data' in data) {
+      if (typeof data === "object" && data !== null && "data" in data) {
         const value = data.data;
-        if (typeof value === 'string') {
-          console.error(' value ', value);
+        if (typeof value === "string") {
           result = value;
         }
       }
@@ -186,7 +175,7 @@ export class SimpleKeyring implements Keyring {
       await this.#removePendingRequest(id);
       await this.#emitEvent(KeyringEvent.RequestApproved, { id, result });
     } catch (error) {
-      console.error('Failed to emit event:', error);
+      console.error("Failed to emit event:", error);
     }
   }
 
@@ -206,24 +195,18 @@ export class SimpleKeyring implements Keyring {
 
   #getCurrentUrl(): string {
     const dappUrlPrefix =
-      process.env.NODE_ENV === 'production'
+      process.env.NODE_ENV === "production"
         ? process.env.DAPP_ORIGIN_PRODUCTION
         : process.env.DAPP_ORIGIN_DEVELOPMENT;
-    const dappVersion: string = packageInfo.version;
+    console.log("getCurrentUrl ==> dappUrlPrefix", dappUrlPrefix);
+    console.log("getCurrentUrl ==> process.env", process.env.NODE_ENV);
 
-    // Ensuring that both dappUrlPrefix and dappVersion are truthy
-    if (dappUrlPrefix && dappVersion && process.env.NODE_ENV === 'production') {
-      return `${dappUrlPrefix}${dappVersion}/`;
-    }
-    // Default URL if dappUrlPrefix or dappVersion are falsy, or if URL construction fails
     return dappUrlPrefix as string;
   }
 
   async #asyncSubmitRequest(
-    request: KeyringRequest,
+    request: KeyringRequest
   ): Promise<SubmitRequestResponse> {
-    console.log('asyncSubmitRequest');
-    console.log('request', request);
 
     this.#state.pendingRequests[request.id] = request;
     await this.#saveState();
@@ -232,7 +215,7 @@ export class SimpleKeyring implements Keyring {
       pending: true,
       redirect: {
         url: dappUrl,
-        message: 'Redirecting to Gardio Snap to sign transaction',
+        message: "Redirecting to Gardio Snap to sign transaction",
       },
     };
   }
@@ -243,7 +226,7 @@ export class SimpleKeyring implements Keyring {
 
   async #emitEvent(
     event: KeyringEvent,
-    data: Record<string, Json>,
+    data: Record<string, Json>
   ): Promise<void> {
     await emitSnapKeyringEvent(snap, event, data);
   }

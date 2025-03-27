@@ -71,7 +71,6 @@ async function getKeyring(): Promise<SimpleKeyring> {
   return keyring;
 }
 
-
 /**
  * Handle incoming signature requests, sent through one of the following methods:
  * `personal_sign`, `eth_signTypedData`, `eth_signTypedData_v3`, `eth_signTypedData_v4`.

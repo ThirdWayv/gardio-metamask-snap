@@ -24,7 +24,7 @@ npm start
 
 ## Using the snap
 
-The production snap is available as Snap ID `npm:gardio-snap`.
+The production snap is available as Snap ID `npm:@gardio/gardio-snap`.
 
 The locally started snap is available as Snap ID `local:http://localhost:8080`.
 
