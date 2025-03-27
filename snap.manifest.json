@@ -7,12 +7,12 @@
     "url": "git+https://github.com/ThirdWayv/gardio-metamask-snap.git"
   },
   "source": {
-    "shasum": "94KD1pNJ4II3ZCD1tdUqiMrmbKjPb10SD+Uics/HzSk=",
+    "shasum": "bo/uok6FkalYNFZ2/b40/4hAPamACgvOssVXvdlZD+c=",
     "location": {
       "npm": {
         "filePath": "dist/bundle.js",
         "iconPath": "images/icon.svg",
-        "packageName": "gardio-snap",
+        "packageName": "gardio-mm-snap",
         "registry": "https://registry.npmjs.org/"
       }
     }
