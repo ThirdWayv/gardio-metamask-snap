@@ -11,7 +11,7 @@ import {
 } from "@metamask/keyring-api";
 import { KeyringEvent } from "@metamask/keyring-api/dist/events";
 import { type Json } from "@metamask/utils";
-import { v4 as uuid } from "uuid";
+import { v4 } from "uuid";
 
 import { saveState } from "./stateManagement";
 import { isEvmChain, isUniqueAddress, throwError } from "./util";
@@ -29,7 +29,7 @@ export type Wallet = {
 };
 
 export class SimpleKeyring implements Keyring {
-  #state: KeyringState;
+  readonly #state: KeyringState;
 
   constructor(state: KeyringState) {
     this.#state = state;
@@ -58,7 +58,7 @@ export class SimpleKeyring implements Keyring {
       }
 
       const account: KeyringAccount = {
-        id: uuid(),
+        id: v4(), // Call `v4()` from `uuid`
         options,
         address,
         methods: [
@@ -90,7 +90,6 @@ export class SimpleKeyring implements Keyring {
 
       return account;
     } catch (error) {
-      console.error(error);
       throw new Error((error as Error).message);
     }
   }
@@ -157,9 +156,9 @@ export class SimpleKeyring implements Keyring {
       this.#state.pendingRequests[id] ??
       throwError(`Request '${id}' not found`);
 
-    let result: any = [];
+    let result: string | Record<string, Json> | [] = [];
 
-    if (request.method == EthMethod.PersonalSign) {
+    if (request.method as EthMethod === EthMethod.PersonalSign) {
       // If data is an object and has a "data" key, return that key's value (assuming it's a string)
       if (typeof data === "object" && data !== null && "data" in data) {
         const value = data.data;
@@ -175,7 +174,7 @@ export class SimpleKeyring implements Keyring {
       await this.#removePendingRequest(id);
       await this.#emitEvent(KeyringEvent.RequestApproved, { id, result });
     } catch (error) {
-      console.error("Failed to emit event:", error);
+      throwError((error as Error).message);
     }
   }
 
@@ -198,8 +197,6 @@ export class SimpleKeyring implements Keyring {
       process.env.NODE_ENV === "production"
         ? process.env.DAPP_ORIGIN_PRODUCTION
         : process.env.DAPP_ORIGIN_DEVELOPMENT;
-    console.log("getCurrentUrl ==> dappUrlPrefix", dappUrlPrefix);
-    console.log("getCurrentUrl ==> process.env", process.env.NODE_ENV);
 
     return dappUrlPrefix as string;
   }

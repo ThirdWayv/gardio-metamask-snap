@@ -40,13 +40,12 @@ const FUNCTION_SIGNATURES = [
 /**
  * Decode the transaction data. This checks the signature of the function that
  * is being called, and returns the type of transaction.
- *
  * @param data - The transaction data. This is expected to be a hex string,
  * containing the function signature and the parameters.
  * @returns The type of transaction, or "Unknown," if the function signature
  * does not match any known signatures.
  */
-export function decodeData(data: string) {
+export function decodeData(data: string): string {
   const normalisedData = remove0x(data);
   const signature = normalisedData.slice(0, 8);
 
@@ -60,6 +59,7 @@ let keyring: SimpleKeyring;
 
 /**
  * Return the keyring instance. If it doesn't exist, create it.
+ * @returns The keyring instance.
  */
 async function getKeyring(): Promise<SimpleKeyring> {
   if (!keyring) {
@@ -74,19 +74,15 @@ async function getKeyring(): Promise<SimpleKeyring> {
 /**
  * Handle incoming signature requests, sent through one of the following methods:
  * `personal_sign`, `eth_signTypedData`, `eth_signTypedData_v3`, `eth_signTypedData_v4`.
- *
  * The `onSignature` handler is different from the `onRpcRequest` handler in
  * that it is called by MetaMask when a signature request is initiated, rather than
  * when a dapp sends a JSON-RPC request. The handler is called before the
  * signature is made, so it can be used to display information about the
  * signature request to the user before they sign.
- *
  * The `onSignature` handler returns a Snaps UI component, which is displayed
  * in the signature insights panel.
- *
  * @param args - The request parameters.
  * @param args.signature - The signature object. This contains the
- * transaction parameters, such as the `from` and `data` fields.
  * @returns The signature insights.
  */
 export const onSignature: OnSignatureHandler = async ({ signature }) => {
@@ -100,8 +96,13 @@ export const onSignature: OnSignatureHandler = async ({ signature }) => {
         severity: SeverityLevel.Critical,
       };
 
+    case 'eth_sign':
+    case 'eth_signTypedData':
+    case 'eth_signTypedData_v3':
+    case 'eth_signTypedData_v4':
+      throw new Error(`UnSupported signature method: ${signatureMethod}`);
     default:
-      return null;
+      throw new Error(`UnSupported signature method`);
   }
 };
 
@@ -111,16 +112,13 @@ export const onSignature: OnSignatureHandler = async ({ signature }) => {
  * Handle incoming transactions, sent through the `wallet_sendTransaction`
  * method. This handler decodes the transaction data, and displays the type of
  * transaction in the transaction insights panel.
- *
  * The `onTransaction` handler is different from the `onRpcRequest` handler in
  * that it is called by MetaMask when a transaction is initiated, rather than
  * when a dapp sends a JSON-RPC request. The handler is called before the
  * transaction is signed, so it can be used to display information about the
  * transaction to the user before they sign it.
- *
  * The `onTransaction` handler returns a Snaps UI component, which is displayed
  * in the transaction insights panel.
- *
  * @param args - The request parameters.
  * @param args.transaction - The transaction object. This contains the
  * transaction parameters, such as the `from`, `to`, `value`, and `data` fields.
@@ -153,7 +151,6 @@ export const onTransaction: OnTransactionHandler = async ({ transaction }) => {
 
 /**
  * Verify if the caller can call the requested method.
- *
  * @param origin - Caller origin.
  * @param method - Method being called.
  * @returns True if the caller is allowed to call the method, false otherwise.
@@ -179,7 +176,7 @@ export const onRpcRequest: OnRpcRequestHandler = async ({
   }
 
   // Handle custom methods.
-  switch (request.method) {
+  switch (request.method as InternalMethod) {
     case InternalMethod.ToggleSyncApprovals: {
       return (await getKeyring()).toggleSyncApprovals();
     }

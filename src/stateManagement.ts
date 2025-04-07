@@ -12,7 +12,6 @@ const defaultState: KeyringState = {
 
 /**
  * Retrieves the current state of the keyring.
- *
  * @returns The current state of the keyring.
  */
 export async function getState(): Promise<KeyringState> {
@@ -31,10 +30,9 @@ export async function getState(): Promise<KeyringState> {
 
 /**
  * Persists the given snap state.
- *
  * @param state - New snap state.
  */
-export async function saveState(state: KeyringState) {
+export async function saveState(state: KeyringState): Promise<void>{
   await snap.request({
     method: 'snap_manageState',
     params: { operation: 'update', newState: state },
