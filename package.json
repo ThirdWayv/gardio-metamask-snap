@@ -1,6 +1,6 @@
 {
   "name": "@gardio/gardio-snap",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "gardio Snap that integrates with MetaMask accounts.",
   "keywords": [
     "gardio",
