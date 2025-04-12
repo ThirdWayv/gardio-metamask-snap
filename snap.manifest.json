@@ -1,5 +1,5 @@
 {
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Manage gardio hardware wallet accounts and sign transactions through MetaMask.",
   "proposedName": "gardio wallet",
   "repository": {
