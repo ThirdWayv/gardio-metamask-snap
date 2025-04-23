@@ -227,18 +227,4 @@ export class SimpleKeyring implements Keyring {
   ): Promise<void> {
     await emitSnapKeyringEvent(snap, event, data);
   }
-
-  async toggleSyncApprovals(): Promise<void> {
-    this.#state.useSyncApprovals = !this.#state.useSyncApprovals;
-    await this.#saveState();
-  }
-
-  async setSyncApprovals(bSyncApprovals: boolean): Promise<void> {
-    this.#state.useSyncApprovals = bSyncApprovals;
-    await this.#saveState();
-  }
-
-  isSynchronousMode(): boolean {
-    return this.#state.useSyncApprovals;
-  }
 }

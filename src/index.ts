@@ -1,5 +1,4 @@
 import {
-  MethodNotSupportedError,
   handleKeyringRequest,
 } from '@metamask/keyring-api';
 import type {
@@ -9,7 +8,7 @@ import type {
 
 import { SimpleKeyring } from './keyring';
 import { logger } from './logger';
-import { InternalMethod, originPermissions } from './permissions';
+import { originPermissions } from './permissions';
 import { getState } from './stateManagement';
 
 import type { OnTransactionHandler } from '@metamask/snaps-sdk';
@@ -173,21 +172,6 @@ export const onRpcRequest: OnRpcRequestHandler = async ({
     throw new Error(
       `Origin '${origin}' is not allowed to call '${request.method}'`,
     );
-  }
-
-  // Handle custom methods.
-  switch (request.method as InternalMethod) {
-    case InternalMethod.ToggleSyncApprovals: {
-      return (await getKeyring()).toggleSyncApprovals();
-    }
-
-    case InternalMethod.IsSynchronousMode: {
-      return (await getKeyring()).isSynchronousMode();
-    }
-
-    default: {
-      throw new MethodNotSupportedError(request.method);
-    }
   }
 };
 
