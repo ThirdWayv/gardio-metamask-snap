@@ -51,46 +51,65 @@ export class SimpleKeyring implements Keyring {
   ): Promise<KeyringAccount> {
 
     try {
-      const address: string = options.address as string;
+        const address: string = options.address as string;
 
-      if (!isUniqueAddress(address, Object.values(this.#state.wallets))) {
-        throw new Error(`Account address already in use: ${address}`);
-      }
-
-      const account: KeyringAccount = {
-        id: v4(), // Call `v4()` from `uuid`
-        options,
-        address,
-        methods: [
-          EthMethod.PersonalSign,
-          EthMethod.Sign,
-          EthMethod.SignTransaction,
-          EthMethod.SignTypedDataV1,
-          EthMethod.SignTypedDataV3,
-          EthMethod.SignTypedDataV4,
-        ],
-        type: EthAccountType.Eoa,
-      };
-
-      this.#state.wallets[account.id] = {
-        account: account,
-        hdPath: options.hdPath as string,
-      };
-
-      const accountIdx = this.#state.wallets
-        ? Object.keys(this.#state.wallets).length
+        if (!isUniqueAddress(address, Object.values(this.#state.wallets))) {
+          throw new Error(`Account address already in use: ${address}`);
+        }
+        
+        const account: KeyringAccount = {
+          id: v4(), // Call `v4()` from `uuid`
+          options,
+          address,
+          methods: [
+            EthMethod.PersonalSign,
+            EthMethod.Sign,
+            EthMethod.SignTransaction,
+            EthMethod.SignTypedDataV1,
+            EthMethod.SignTypedDataV3,
+            EthMethod.SignTypedDataV4,
+          ],
+          type: EthAccountType.Eoa,
+        };
+        
+        
+        const accountIdx = this.#state.wallets
+        ? (Object.keys(this.#state.wallets).length + 1)
         : 0;
 
-      await this.#emitEvent(KeyringEvent.AccountCreated, {
-        account,
-        accountNameSuggestion: "Gardio Account " + accountIdx,
-      });
+        await this.#emitEvent(KeyringEvent.AccountCreated, {
+          account,
+          accountNameSuggestion: "Gardio Account " + accountIdx,
+        });
 
-      await this.#saveState();
+        
+        this.#state.wallets[account.id] = {
+          account: account,
+          hdPath: options.hdPath as string,
+        };
+        
+        await this.#saveState();
 
-      return account;
+
+        return account;
+
     } catch (error) {
-      throw new Error((error as Error).message);
+      if( (error as Error).message.includes("Error occurred while showing account creation") )
+      {
+        const nullAccount: KeyringAccount = {
+          id: '',
+          address: '',
+          options: {},
+          methods: [],
+          type: 'eip155:eoa',
+        };
+
+        return nullAccount;
+      }
+      else
+      {
+        throw new Error((error as Error).message);
+      }
     }
   }
 
