@@ -149,7 +149,7 @@ export class SimpleKeyring implements Keyring {
 
   async approveRequest(
     id: string,
-    data?: Record<string, Json> | string
+    data?: Record<string, Json>
   ): Promise<void> {
 
     const { request } =
@@ -158,16 +158,49 @@ export class SimpleKeyring implements Keyring {
 
     let result: string | Record<string, Json> | [] = [];
 
-    if (request.method as EthMethod === EthMethod.PersonalSign) {
-      // If data is an object and has a "data" key, return that key's value (assuming it's a string)
-      if (typeof data === "object" && data !== null && "data" in data) {
-        const value = data.data;
-        if (typeof value === "string") {
-          result = value;
-        }
+    if(data !== undefined)
+    {
+      switch(request.method as EthMethod)
+      {
+        case EthMethod.PersonalSign:
+        case EthMethod.Sign:
+        case EthMethod.SignTypedDataV1:
+        case EthMethod.SignTypedDataV3:
+        case EthMethod.SignTypedDataV4:
+        case EthMethod.SignUserOperation:
+          {
+            if(data.data !== undefined && (typeof data.data === "string"))
+            {
+              result = data.data;
+            }
+            else
+            {
+              throwError(`Invalid Data ${JSON.stringify(data)}`);
+            }
+            break;
+          }
+        case EthMethod.SignTransaction:
+        case EthMethod.PrepareUserOperation:
+        case EthMethod.PatchUserOperation:
+          {
+            if(typeof data === "object")
+            {
+              result = data;
+            }
+            else
+            {
+              throwError(`Invalid Data ${JSON.stringify(data)}`);
+            }
+            break;
+          }
+
+        default:
+          throwError(`EVM method '${request.method}' not supported`);
       }
-    } else {
-      result = data ?? [];
+    }
+    else
+    {
+      throwError(`Invalid Data ${data}`);
     }
 
     try {
