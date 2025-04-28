@@ -49,29 +49,31 @@ export class SimpleKeyring implements Keyring {
   async createAccount(
     options: Record<string, Json> = {}
   ): Promise<KeyringAccount> {
-
+    
+    const account: KeyringAccount = {
+      id: v4(), // Call `v4()` from `uuid`
+      options,
+      address:'',
+      methods: [
+        EthMethod.PersonalSign,
+        EthMethod.Sign,
+        EthMethod.SignTransaction,
+        EthMethod.SignTypedDataV1,
+        EthMethod.SignTypedDataV3,
+        EthMethod.SignTypedDataV4,
+      ],
+      type: EthAccountType.Eoa,
+    };
+    
     try {
+
         const address: string = options.address as string;
+
+        account.address = address;
 
         if (!isUniqueAddress(address, Object.values(this.#state.wallets))) {
           throw new Error(`Account address already in use: ${address}`);
         }
-        
-        const account: KeyringAccount = {
-          id: v4(), // Call `v4()` from `uuid`
-          options,
-          address,
-          methods: [
-            EthMethod.PersonalSign,
-            EthMethod.Sign,
-            EthMethod.SignTransaction,
-            EthMethod.SignTypedDataV1,
-            EthMethod.SignTypedDataV3,
-            EthMethod.SignTypedDataV4,
-          ],
-          type: EthAccountType.Eoa,
-        };
-        
         
         const accountIdx = this.#state.wallets
         ? (Object.keys(this.#state.wallets).length + 1)
@@ -97,14 +99,8 @@ export class SimpleKeyring implements Keyring {
       {
         // No throw for this error to keep the stream alive
         // return null account instead of throw error
-        const account: KeyringAccount = {
-          id: v4(), // Call `v4()` from `uuid`
-          options: {},
-          address: '',
-          methods: [],
-          type: EthAccountType.Eoa,
-        };
-
+        account.address = '';
+        
         return account;
       }
       else
