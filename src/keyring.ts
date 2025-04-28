@@ -26,6 +26,7 @@ export type KeyringState = {
 export type Wallet = {
   account: KeyringAccount;
   hdPath: string;
+  pendingCreation: boolean;
 };
 
 export class SimpleKeyring implements Keyring {
@@ -36,7 +37,12 @@ export class SimpleKeyring implements Keyring {
   }
 
   async listAccounts(): Promise<KeyringAccount[]> {
-    return Object.values(this.#state.wallets).map((wallet) => wallet.account);
+    return Object.values(this.#state.wallets).map((wallet) => {
+      if (wallet.pendingCreation) {
+        // throwError(`Wallet with ID ${wallet.account.id} is still pending creation.`);
+      }
+      return wallet.account;
+    });
   }
 
   async getAccount(id: string): Promise<KeyringAccount> {
@@ -49,64 +55,55 @@ export class SimpleKeyring implements Keyring {
   async createAccount(
     options: Record<string, Json> = {}
   ): Promise<KeyringAccount> {
-    
-    const account: KeyringAccount = {
-      id: v4(), // Call `v4()` from `uuid`
-      options,
-      address:'',
-      methods: [
-        EthMethod.PersonalSign,
-        EthMethod.Sign,
-        EthMethod.SignTransaction,
-        EthMethod.SignTypedDataV1,
-        EthMethod.SignTypedDataV3,
-        EthMethod.SignTypedDataV4,
-      ],
-      type: EthAccountType.Eoa,
-    };
-    
+
     try {
+      const address: string = options.address as string;
 
-        const address: string = options.address as string;
+      if (!isUniqueAddress(address, Object.values(this.#state.wallets))) {
+        throw new Error(`Account address already in use: ${address}`);
+      }
+      
+      const account: KeyringAccount = {
+        id: v4(), // Call `v4()` from `uuid`
+        options,
+        address,
+        methods: [
+          EthMethod.PersonalSign,
+          EthMethod.Sign,
+          EthMethod.SignTransaction,
+          EthMethod.SignTypedDataV1,
+          EthMethod.SignTypedDataV3,
+          EthMethod.SignTypedDataV4,
+        ],
+        type: EthAccountType.Eoa,
+      };
+      
+      this.#state.wallets[account.id] = {
+        account: account,
+        hdPath: options.hdPath as string,
+        pendingCreation: true,
+      };
 
-        account.address = address;
+      const accountIdx = this.#state.wallets
+      ? (Object.keys(this.#state.wallets).length + 1) 
+      : 0;
 
-        if (!isUniqueAddress(address, Object.values(this.#state.wallets))) {
-          throw new Error(`Account address already in use: ${address}`);
-        }
-        
-        const accountIdx = this.#state.wallets
-        ? (Object.keys(this.#state.wallets).length + 1)
-        : 0;
+      await this.#emitEvent(KeyringEvent.AccountCreated, {
+        account,
+        accountNameSuggestion: "Gardio Account " + accountIdx,
+      });
 
-        await this.#emitEvent(KeyringEvent.AccountCreated, {
-          account,
-          accountNameSuggestion: "Gardio Account " + accountIdx,
-        });
+      this.#state.wallets[account.id] = {
+        account: account,
+        hdPath: options.hdPath as string,
+        pendingCreation: false,
+      };
 
-        this.#state.wallets[account.id] = {
-          account: account,
-          hdPath: options.hdPath as string,
-        };
-        
-        await this.#saveState();
+      await this.#saveState();
 
-
-        return account;
-
+      return account;
     } catch (error) {
-      if( (error as Error).message.includes("already pending") )
-      {
-        // No throw for this error to keep the stream alive
-        // return null account instead of throw error
-        account.address = '';
-        
-        return account;
-      }
-      else
-      {
-        throw new Error((error as Error).message);
-      }
+      throw new Error((error as Error).message);
     }
   }
 
@@ -235,6 +232,10 @@ export class SimpleKeyring implements Keyring {
     await this.#removePendingRequest(id);
     await this.#emitEvent(KeyringEvent.RequestRejected, { id });
   }
+
+  async IsPendingCreation(): Promise<boolean> {
+    return Object.values(this.#state.wallets).some((wallet) => wallet.pendingCreation);
+  } 
 
   async #removePendingRequest(id: string): Promise<void> {
     delete this.#state.pendingRequests[id];
