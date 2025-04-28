@@ -82,7 +82,6 @@ export class SimpleKeyring implements Keyring {
           accountNameSuggestion: "Gardio Account " + accountIdx,
         });
 
-        
         this.#state.wallets[account.id] = {
           account: account,
           hdPath: options.hdPath as string,
@@ -94,17 +93,19 @@ export class SimpleKeyring implements Keyring {
         return account;
 
     } catch (error) {
-      if( (error as Error).message.includes("Error occurred while showing account creation") )
+      if( (error as Error).message.includes("already pending") )
       {
-        const nullAccount: KeyringAccount = {
-          id: '',
-          address: '',
+        // No throw for this error to keep the stream alive
+        // return null account instead of throw error
+        const account: KeyringAccount = {
+          id: v4(), // Call `v4()` from `uuid`
           options: {},
+          address: '',
           methods: [],
-          type: 'eip155:eoa',
+          type: EthAccountType.Eoa,
         };
 
-        return nullAccount;
+        return account;
       }
       else
       {
