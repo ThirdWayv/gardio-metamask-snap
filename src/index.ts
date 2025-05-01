@@ -1,5 +1,4 @@
 import {
-  MethodNotSupportedError,
   handleKeyringRequest,
 } from '@metamask/keyring-api';
 import type {
@@ -123,16 +122,11 @@ export const onRpcRequest: OnRpcRequestHandler = async ({
     );
   }
 
-  // Handle custom methods.
-  switch (request.method as InternalMethod) {
-    case InternalMethod.IsPendingCreation: {
-      return (await getKeyring()).IsPendingCreation();
-    }
-
-    default: {
-      throw new MethodNotSupportedError(request.method);
-    }
+  // Handle custom method IsPendingCreation.
+  if(request.method as InternalMethod === InternalMethod.IsPendingCreation) {
+    return (await getKeyring()).IsPendingCreation();
   }
+
 };
 
 export const onKeyringRequest: OnKeyringRequestHandler = async ({

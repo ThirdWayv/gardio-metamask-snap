@@ -37,12 +37,7 @@ export class SimpleKeyring implements Keyring {
   }
 
   async listAccounts(): Promise<KeyringAccount[]> {
-    return Object.values(this.#state.wallets).map((wallet) => {
-      if (wallet.pendingCreation) {
-        // throwError(`Wallet with ID ${wallet.account.id} is still pending creation.`);
-      }
-      return wallet.account;
-    });
+    return Object.values(this.#state.wallets).map((wallet) => wallet.account);
   }
 
   async getAccount(id: string): Promise<KeyringAccount> {
@@ -85,7 +80,7 @@ export class SimpleKeyring implements Keyring {
       };
 
       const accountIdx = this.#state.wallets
-      ? (Object.keys(this.#state.wallets).length + 1) 
+      ? Object.keys(this.#state.wallets).length
       : 0;
 
       await this.#emitEvent(KeyringEvent.AccountCreated, {
@@ -93,6 +88,7 @@ export class SimpleKeyring implements Keyring {
         accountNameSuggestion: "Gardio Account " + accountIdx,
       });
 
+      console.error("AccountCreated");
       this.#state.wallets[account.id] = {
         account: account,
         hdPath: options.hdPath as string,
