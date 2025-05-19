@@ -26,6 +26,7 @@ export type KeyringState = {
 export type Wallet = {
   account: KeyringAccount;
   hdPath: string;
+  pendingCreation: boolean;
 };
 
 export class SimpleKeyring implements Keyring {
@@ -56,7 +57,7 @@ export class SimpleKeyring implements Keyring {
       if (!isUniqueAddress(address, Object.values(this.#state.wallets))) {
         throw new Error(`Account address already in use: ${address}`);
       }
-
+      
       const account: KeyringAccount = {
         id: v4(), // Call `v4()` from `uuid`
         options,
@@ -71,20 +72,28 @@ export class SimpleKeyring implements Keyring {
         ],
         type: EthAccountType.Eoa,
       };
-
+      
       this.#state.wallets[account.id] = {
         account: account,
         hdPath: options.hdPath as string,
+        pendingCreation: true,
       };
 
       const accountIdx = this.#state.wallets
-        ? Object.keys(this.#state.wallets).length
-        : 0;
+      ? Object.keys(this.#state.wallets).length
+      : 0;
 
       await this.#emitEvent(KeyringEvent.AccountCreated, {
         account,
         accountNameSuggestion: "Gardio Account " + accountIdx,
       });
+
+      console.error("AccountCreated");
+      this.#state.wallets[account.id] = {
+        account: account,
+        hdPath: options.hdPath as string,
+        pendingCreation: false,
+      };
 
       await this.#saveState();
 
@@ -149,7 +158,7 @@ export class SimpleKeyring implements Keyring {
 
   async approveRequest(
     id: string,
-    data?: Record<string, Json> | string
+    data?: Record<string, Json>
   ): Promise<void> {
 
     const { request } =
@@ -158,16 +167,49 @@ export class SimpleKeyring implements Keyring {
 
     let result: string | Record<string, Json> | [] = [];
 
-    if (request.method as EthMethod === EthMethod.PersonalSign) {
-      // If data is an object and has a "data" key, return that key's value (assuming it's a string)
-      if (typeof data === "object" && data !== null && "data" in data) {
-        const value = data.data;
-        if (typeof value === "string") {
-          result = value;
-        }
+    if(data !== undefined)
+    {
+      switch(request.method as EthMethod)
+      {
+        case EthMethod.PersonalSign:
+        case EthMethod.Sign:
+        case EthMethod.SignTypedDataV1:
+        case EthMethod.SignTypedDataV3:
+        case EthMethod.SignTypedDataV4:
+        case EthMethod.SignUserOperation:
+          {
+            if(data.data !== undefined && (typeof data.data === "string"))
+            {
+              result = data.data;
+            }
+            else
+            {
+              throwError(`Invalid Data ${JSON.stringify(data)}`);
+            }
+            break;
+          }
+        case EthMethod.SignTransaction:
+        case EthMethod.PrepareUserOperation:
+        case EthMethod.PatchUserOperation:
+          {
+            if(typeof data === "object")
+            {
+              result = data;
+            }
+            else
+            {
+              throwError(`Invalid Data ${JSON.stringify(data)}`);
+            }
+            break;
+          }
+
+        default:
+          throwError(`EVM method '${request.method}' not supported`);
       }
-    } else {
-      result = data ?? [];
+    }
+    else
+    {
+      throwError(`Invalid Data ${data}`);
     }
 
     try {
@@ -186,6 +228,10 @@ export class SimpleKeyring implements Keyring {
     await this.#removePendingRequest(id);
     await this.#emitEvent(KeyringEvent.RequestRejected, { id });
   }
+
+  async IsPendingCreation(): Promise<boolean> {
+    return Object.values(this.#state.wallets).some((wallet) => wallet.pendingCreation);
+  } 
 
   async #removePendingRequest(id: string): Promise<void> {
     delete this.#state.pendingRequests[id];
