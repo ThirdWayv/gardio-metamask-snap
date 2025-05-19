@@ -26,6 +26,7 @@ export const originPermissions = new Map<string, string[]>([
       KeyringRpcMethod.ListAccounts,
       KeyringRpcMethod.GetAccount,
       KeyringRpcMethod.CreateAccount,
+      KeyringRpcMethod.UpdateAccount,
       KeyringRpcMethod.DeleteAccount,
       KeyringRpcMethod.ListRequests,
       KeyringRpcMethod.GetRequest,
@@ -42,11 +43,14 @@ export const originPermissions = new Map<string, string[]>([
       KeyringRpcMethod.ListAccounts,
       KeyringRpcMethod.GetAccount,
       KeyringRpcMethod.CreateAccount,
+      KeyringRpcMethod.UpdateAccount,
       KeyringRpcMethod.DeleteAccount,
       KeyringRpcMethod.ListRequests,
       KeyringRpcMethod.GetRequest,
       KeyringRpcMethod.ApproveRequest,
       KeyringRpcMethod.RejectRequest,
+      // Custom methods
+      InternalMethod.IsPendingCreation,
     ],
   ],
 ]);
