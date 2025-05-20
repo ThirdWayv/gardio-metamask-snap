@@ -60,7 +60,7 @@ export class SimpleKeyring implements Keyring {
       
       const account: KeyringAccount = {
         id: v4(), // Call `v4()` from `uuid`
-        options,
+        options: {},
         address,
         methods: [
           EthMethod.PersonalSign,
@@ -79,16 +79,11 @@ export class SimpleKeyring implements Keyring {
         pendingCreation: true,
       };
 
-      const accountIdx = this.#state.wallets
-      ? Object.keys(this.#state.wallets).length
-      : 0;
-
       await this.#emitEvent(KeyringEvent.AccountCreated, {
         account,
-        accountNameSuggestion: "Gardio Account " + accountIdx,
+        accountNameSuggestion: "Gardio Account " + options.idx,
       });
 
-      console.error("AccountCreated");
       this.#state.wallets[account.id] = {
         account: account,
         hdPath: options.hdPath as string,
