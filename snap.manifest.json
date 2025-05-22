@@ -34,8 +34,7 @@
     },
     "endowment:transaction-insight": {
       "allowTransactionOrigin": true
-    },
-    "endowment:network-access": {}
+    }
   },
   "manifestVersion": "0.1"
 }
