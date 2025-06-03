@@ -25,7 +25,6 @@ export type KeyringState = {
 
 export type Wallet = {
   account: KeyringAccount;
-  hdPath: string;
   pendingCreation: boolean;
 };
 
@@ -52,52 +51,56 @@ export class SimpleKeyring implements Keyring {
   ): Promise<KeyringAccount> {
 
     try {
-      const address: string = options.address as string;
+      if(options && options.address && options.name)
+      {
+        const address: string = options.address as string;
 
-      if (!isUniqueAddress(address, Object.values(this.#state.wallets))) {
-        throw new Error(`Account address already in use: ${address}`);
+        if (!isUniqueAddress(address, Object.values(this.#state.wallets))) {
+          throw new Error(`Account address already in use: ${address}`);
+        }
+        
+        const account: KeyringAccount = {
+          id: v4(), // Call `v4()` from `uuid`
+          options: {},
+          address,
+          methods: [
+            EthMethod.PersonalSign,
+            EthMethod.Sign,
+            EthMethod.SignTransaction,
+            EthMethod.SignTypedDataV1,
+            EthMethod.SignTypedDataV3,
+            EthMethod.SignTypedDataV4,
+          ],
+          type: EthAccountType.Eoa,
+        };
+        
+        this.#state.wallets[account.id] = {
+          account: account,
+          pendingCreation: true,
+        };
+
+        await this.#emitEvent(KeyringEvent.AccountCreated, {
+          account,
+          accountNameSuggestion: options.name,
+        });
+
+        // Save account options in snap only
+        // No need to import it in metamask
+        account.options = options;
+
+        this.#state.wallets[account.id] = {
+          account: account,
+          pendingCreation: false,
+        };
+
+        await this.#saveState();
+
+        return account;
       }
-      
-      const account: KeyringAccount = {
-        id: v4(), // Call `v4()` from `uuid`
-        options,
-        address,
-        methods: [
-          EthMethod.PersonalSign,
-          EthMethod.Sign,
-          EthMethod.SignTransaction,
-          EthMethod.SignTypedDataV1,
-          EthMethod.SignTypedDataV3,
-          EthMethod.SignTypedDataV4,
-        ],
-        type: EthAccountType.Eoa,
-      };
-      
-      this.#state.wallets[account.id] = {
-        account: account,
-        hdPath: options.hdPath as string,
-        pendingCreation: true,
-      };
-
-      const accountIdx = this.#state.wallets
-      ? Object.keys(this.#state.wallets).length
-      : 0;
-
-      await this.#emitEvent(KeyringEvent.AccountCreated, {
-        account,
-        accountNameSuggestion: "Gardio Account " + accountIdx,
-      });
-
-      console.error("AccountCreated");
-      this.#state.wallets[account.id] = {
-        account: account,
-        hdPath: options.hdPath as string,
-        pendingCreation: false,
-      };
-
-      await this.#saveState();
-
-      return account;
+      else
+      {
+        throw new Error("Invalid Arguments");
+      }
     } catch (error) {
       throw new Error((error as Error).message);
     }
