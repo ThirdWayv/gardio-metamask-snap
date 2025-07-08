@@ -1,15 +1,24 @@
 import type {
-  Keyring,
-  KeyringAccount,
-  KeyringRequest,
   SubmitRequestResponse,
+  KeyringEventPayload
 } from "@metamask/keyring-api";
+
+import {
+  KeyringEvent,
+  SolAccountType,
+  SolMethod,
+  EthScope,
+  SolScope,
+  type Keyring,
+  type KeyringAccount,
+  type KeyringRequest,
+} from '@metamask/keyring-api';
+
 import {
   EthAccountType,
   EthMethod,
-  emitSnapKeyringEvent,
 } from "@metamask/keyring-api";
-import { KeyringEvent } from "@metamask/keyring-api/dist/events";
+import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { type Json } from "@metamask/utils";
 import { v4 } from "uuid";
 
@@ -26,6 +35,12 @@ export type KeyringState = {
 export type Wallet = {
   account: KeyringAccount;
   pendingCreation: boolean;
+};
+
+const enumCoinType = {
+  ETHEREUM: 23,
+  SOLANA: 57,
+  CRYPTO_GUARD_IF_COIN_INVALID: -1
 };
 
 export class SimpleKeyring implements Keyring {
@@ -50,30 +65,62 @@ export class SimpleKeyring implements Keyring {
     options: Record<string, Json> = {}
   ): Promise<KeyringAccount> {
 
+    const id = globalThis.crypto.randomUUID();
     try {
       if(options && options.address && options.name)
       {
         const address: string = options.address as string;
+        let account: KeyringAccount;
 
         if (!isUniqueAddress(address, Object.values(this.#state.wallets))) {
           throw new Error(`Account address already in use: ${address}`);
         }
         
-        const account: KeyringAccount = {
-          id: v4(), // Call `v4()` from `uuid`
-          options: {},
-          address,
-          methods: [
-            EthMethod.PersonalSign,
-            EthMethod.Sign,
-            EthMethod.SignTransaction,
-            EthMethod.SignTypedDataV1,
-            EthMethod.SignTypedDataV3,
-            EthMethod.SignTypedDataV4,
-          ],
-          type: EthAccountType.Eoa,
-        };
+        switch(options.networkType)
+        {
+          case enumCoinType.ETHEREUM:
+            {
+              account = {
+                id: v4(), // Call `v4()` from `uuid`
+                options: {},
+                address,
+                scopes: [EthScope.Eoa, EthScope.Mainnet, EthScope.Testnet],
+                methods: [
+                  EthMethod.PersonalSign,
+                  EthMethod.Sign,
+                  EthMethod.SignTransaction,
+                  EthMethod.SignTypedDataV1,
+                  EthMethod.SignTypedDataV3,
+                  EthMethod.SignTypedDataV4,
+                ],
+                type: EthAccountType.Eoa,
+              };
+              break;
+            }
+          case enumCoinType.SOLANA:
+            {
+              account = {
+                id, 
+                options: {},
+                address,
+                scopes: [SolScope.Mainnet, SolScope.Testnet, SolScope.Devnet],
+                methods: [
+                  SolMethod.SignAndSendTransaction,
+                  SolMethod.SignTransaction,
+                  SolMethod.SignMessage,
+                  SolMethod.SignIn,
+                ],
+                type: SolAccountType.DataAccount,
+              };
+
+              break;
+            }
+
+            default:
+              throw new Error("Invalid options.networkType" + options.networkType);
+        } 
         
+
         this.#state.wallets[account.id] = {
           account: account,
           pendingCreation: true,
@@ -81,7 +128,7 @@ export class SimpleKeyring implements Keyring {
 
         await this.#emitEvent(KeyringEvent.AccountCreated, {
           account,
-          accountNameSuggestion: options.name,
+          accountNameSuggestion: options.name as string,
         });
 
         // Save account options in snap only
@@ -272,7 +319,7 @@ export class SimpleKeyring implements Keyring {
 
   async #emitEvent(
     event: KeyringEvent,
-    data: Record<string, Json>
+    data: KeyringEventPayload<KeyringEvent>,
   ): Promise<void> {
     await emitSnapKeyringEvent(snap, event, data);
   }

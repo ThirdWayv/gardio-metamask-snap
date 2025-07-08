@@ -1,5 +1,5 @@
 {
-  "version": "1.1.1",
+  "version": "1.1.0",
   "description": "Manage gardio hardware wallet accounts and sign transactions through MetaMask.",
   "proposedName": "gardio wallet",
   "repository": {
@@ -7,7 +7,7 @@
     "url": "git+https://github.com/ThirdWayv/gardio-metamask-snap.git"
   },
   "source": {
-    "shasum": "gPX3owIerDUbgiBDZA0PBjebcRf7h25U4564jESh3i8=",
+    "shasum": "j7m46omM/th/mZzg2aem+0WEl6wCMSPu3HNul0lPMQ0=",
     "location": {
       "npm": {
         "filePath": "dist/bundle.js",
@@ -29,6 +29,11 @@
     },
     "snap_manageAccounts": {},
     "snap_manageState": {},
+    "snap_getBip44Entropy": [
+      {
+        "coinType": 501
+      }
+    ],
     "endowment:signature-insight": {
       "allowSignatureOrigin": true
     },
