@@ -7,7 +7,7 @@
     "url": "git+https://github.com/ThirdWayv/gardio-metamask-snap.git"
   },
   "source": {
-    "shasum": "j7m46omM/th/mZzg2aem+0WEl6wCMSPu3HNul0lPMQ0=",
+    "shasum": "IHHLzmV0YshVxG/g8DNWueLZLJa20Hw076T0++wYFmc=",
     "location": {
       "npm": {
         "filePath": "dist/bundle.js",
@@ -39,6 +39,41 @@
     },
     "endowment:transaction-insight": {
       "allowTransactionOrigin": true
+    },
+    "wallet_snap": {
+      "npm:@metamask/solana-wallet-snap": {}
+    },
+    "endowment:ethereum-provider": {},
+    "endowment:network-access": {},
+    "endowment:assets": {
+      "scopes": [
+        "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
+      ]
+    },
+    "endowment:protocol": {
+      "scopes": {
+        "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp": {
+          "methods": [
+            "getGenesisHash",
+            "getLatestBlockhash",
+            "getMinimumBalanceForRentExemption"
+          ]
+        },
+        "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1": {
+          "methods": [
+            "getGenesisHash",
+            "getLatestBlockhash",
+            "getMinimumBalanceForRentExemption"
+          ]
+        }
+      }
+    },
+    "endowment:name-lookup": {
+      "chains": [
+        "solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp",
+        "solana:EtWTRABZaYq6iMfeYKouRu166VU2xqa1"
+      ]
     }
   },
   "manifestVersion": "0.1"

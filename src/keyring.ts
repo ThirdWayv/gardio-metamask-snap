@@ -9,9 +9,13 @@ import {
   SolMethod,
   EthScope,
   SolScope,
+  Balance,
   type Keyring,
   type KeyringAccount,
   type KeyringRequest,
+  type Pagination,
+  type Paginated,
+  type Transaction,
 } from '@metamask/keyring-api';
 
 import {
@@ -25,11 +29,44 @@ import { v4 } from "uuid";
 import { saveState } from "./stateManagement";
 import { isEvmChain, isUniqueAddress, throwError } from "./util";
 
+import type { CaipAssetType } from '@metamask/snaps-sdk';
+
+import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { clusterApiUrl } from "@solana/web3.js";
+import { CaipAssetTypeStruct } from '@metamask/keyring-api'; // or your path
+
+
+const RPC_URL = 'https://floral-snowy-asphalt.solana-mainnet.quiknode.pro/3e073b0bc4a43256ee2254f4ec81eed0f2a66a03/';
+
+const CHAIN_ID = 'solana:mainnet-beta';
+
+import {
+  ConfirmedSignatureInfo,
+  ParsedTransactionWithMeta,
+  ParsedInstruction,
+  PartiallyDecodedInstruction,
+} from '@solana/web3.js';
+
+
+
+type ListAccountTransactionsResponse = {
+  data: Transaction[];
+  next: string | null;
+};
+
+type SolanaAccountInfo = {
+  txs: Transaction[], 
+  assets: CaipAssetType[], 
+  balance: Record<CaipAssetType, Balance>
+};
+
 
 export type KeyringState = {
   wallets: Record<string, Wallet>;
   pendingRequests: Record<string, KeyringRequest>;
   useSyncApprovals: boolean;
+  solanaAccountInfo: SolanaAccountInfo;
 };
 
 export type Wallet = {
@@ -43,11 +80,21 @@ const enumCoinType = {
   CRYPTO_GUARD_IF_COIN_INVALID: -1
 };
 
+type Signature = string;
+
 export class SimpleKeyring implements Keyring {
   readonly #state: KeyringState;
 
   constructor(state: KeyringState) {
     this.#state = state;
+       // Ensure solanaAccountInfo is initialized
+    if (!state.solanaAccountInfo) {
+      state.solanaAccountInfo = {
+        txs: [],
+        assets: [],
+        balance: {},
+      };
+    }
   }
 
   async listAccounts(): Promise<KeyringAccount[]> {
@@ -140,7 +187,7 @@ export class SimpleKeyring implements Keyring {
           pendingCreation: false,
         };
 
-        await this.#saveState();
+        // await this.#saveState();
 
         return account;
       }
@@ -277,6 +324,188 @@ export class SimpleKeyring implements Keyring {
 
     await this.#removePendingRequest(id);
     await this.#emitEvent(KeyringEvent.RequestRejected, { id });
+  }
+
+  async getAccountAssets(accountAddress: string, rpcUrl: string): Promise<CaipAssetType[]> {
+  const CHAIN_ID = 'solana:mainnet-beta';
+  const assets: CaipAssetType[] = [];
+
+  const connection = new Connection(rpcUrl, 'confirmed');
+  const publicKey = new PublicKey(accountAddress);
+
+  // 1️⃣ Native SOL
+  const lamports = await connection.getBalance(publicKey);
+  if (lamports > 0) {
+    const nativeAsset = `${CHAIN_ID}/native:SOL` as CaipAssetType;
+    CaipAssetTypeStruct.assert(nativeAsset);
+    assets.push(nativeAsset);
+  }
+
+  // 2️⃣ SPL Tokens
+  const tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
+    programId: TOKEN_PROGRAM_ID,
+  });
+
+  for (const { account } of tokenAccounts.value) {
+    const info = (account.data as any).parsed.info;
+    const mint = info.mint;
+    const uiAmount = info.tokenAmount.uiAmount;
+
+    if (uiAmount && uiAmount > 0) {
+      const tokenAsset = `${CHAIN_ID}/token:${mint}` as CaipAssetType;
+      try {
+        CaipAssetTypeStruct.assert(tokenAsset);
+        assets.push(tokenAsset);
+      } catch (e) {
+        console.warn(`Invalid CAIP format for token: ${tokenAsset}`);
+      }
+    }
+  }
+  
+  console.error("assets", assets);
+
+  return assets;
+}
+
+  /**
+   * Bootstrap the transactions for the given account.
+   * @param accountId - The id of the account.
+   * @param pagination - The pagination options.
+   * @param pagination.limit - The limit of the transactions to fetch.
+   * @param pagination.next - The next signature to fetch from.
+   * @returns The transactions for the given account.
+   */
+  async listAccountTransactions(
+    accountId: string,
+    pagination: { limit: number; next?: Signature | null },
+  ): Promise<{
+    data: Transaction[];
+    next: Signature | null;
+  }> {
+  console.log(" listAccountTransactions accountId: ", accountId, "pagination: ", pagination);
+  console.log(" this.#state.solanaAccountInfo.txs", this.#state.solanaAccountInfo.txs);
+  
+  this.#state.solanaAccountInfo.txs.forEach((tx) => {
+    tx.account = accountId;
+  });
+  
+  console.log(" txs account", this.#state.solanaAccountInfo.txs[0]?.account);
+
+  return {
+    data: this.#state.solanaAccountInfo.txs,
+    next: null,
+  };
+}
+ 
+ convertToScopedCaip(assetId: string): CaipAssetType {
+  const [chainPart, assetPart] = assetId.split('/'); // 'solana:mainnet' & 'slip44:501'
+  if (!chainPart || !assetPart) return assetId as CaipAssetType;
+
+  const [namespace, network] = chainPart.split(':');
+  if (namespace !== 'solana') return assetId as CaipAssetType;
+
+  let scoped: string | undefined;
+
+  switch (network) {
+    case 'mainnet':
+    case 'mainnet-beta':
+      scoped = SolScope.Mainnet;
+      break;
+    case 'devnet':
+      scoped = SolScope.Devnet;
+      break;
+    case 'testnet':
+      scoped = SolScope.Testnet;
+      break;
+    default:
+      return assetId as CaipAssetType;
+  }
+
+  return `${scoped}/${assetPart}` as CaipAssetType;
+}
+
+convertToSymbolicCaip(assetId: CaipAssetType): CaipAssetType {
+  const [chainPart, assetPart] = assetId.split('/');
+  const [namespace, cluster] = chainPart.split(':');
+
+  if (namespace !== 'solana') return assetId;
+
+  let symbolic = '';
+
+  switch (cluster) {
+    case SolScope.Mainnet.split(':')[1]:
+      symbolic = 'mainnet';
+      break;
+    case SolScope.Devnet.split(':')[1]:
+      symbolic = 'devnet';
+      break;
+    case SolScope.Testnet.split(':')[1]:
+      symbolic = 'testnet';
+      break;
+    default:
+      return assetId;
+  }
+
+  return `solana:${symbolic}/${assetPart}` as CaipAssetType;
+}
+
+async getAccountBalances(
+  id: string,
+  assets: CaipAssetType[]
+): Promise<Record<CaipAssetType, Balance>> {
+  const result: Record<CaipAssetType, Balance> = {};
+  const storedBalances = this.#state.solanaAccountInfo?.balance ?? {};
+
+  for (const assetId of assets) {
+    const symbolicAssetId = this.convertToSymbolicCaip(assetId);
+    const balance = storedBalances[symbolicAssetId];
+
+    result[assetId] = balance ?? {
+      amount: '0',
+      unit: 'UNKNOWN',
+    };
+  }
+  console.log("getAccountBalances", result);
+  return result;
+}
+
+
+async listAccountAssets(accountId: string): Promise<CaipAssetType[]> {
+  try {
+    const assets = this.#state.solanaAccountInfo?.assets ?? [];
+
+    // Normalize each CAIP asset string to scoped version
+    const mapped = assets.map(this.convertToScopedCaip);
+
+    console.log("listAccountAssets mapped:", mapped);
+    return mapped;
+
+  } catch (error: any) {
+    console.error("listAccountAssets error:", error);
+    throw error;
+  }
+}
+
+
+  /**
+   * Returns the list of assets for the given account in all Solana networks.
+   * @param accountId - The id of the account.
+   * @returns CAIP-19 assets ids.
+   */
+  async setTransactions(params: {
+        Transactions: Transaction[];
+        Assets: CaipAssetType[];
+        Balance: Record<CaipAssetType, Balance>;
+      }) {
+    try {
+      console.error("setTransactions params", params);
+          this.#state.solanaAccountInfo.txs = params.Transactions;
+          this.#state.solanaAccountInfo.assets = params.Assets;
+          this.#state.solanaAccountInfo.balance = params.Balance;
+
+    } catch (error: any) {
+      throw error;
+    }
   }
 
   async IsPendingCreation(): Promise<boolean> {

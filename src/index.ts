@@ -13,6 +13,13 @@ import type { OnTransactionHandler } from '@metamask/snaps-sdk';
 import type { OnSignatureHandler } from "@metamask/snaps-sdk";
 import { SeverityLevel, panel, text } from '@metamask/snaps-sdk';
 import { remove0x } from '@metamask/utils';
+import type { CaipAssetType } from '@metamask/keyring-api';
+import{
+  type Pagination,
+  type Paginated,
+  type Transaction,
+} from '@metamask/keyring-api';
+import { type OnAssetsConversionHandler , OnAssetsConversionResponse, AssetConversion} from '@metamask/snaps-sdk';
 /**
  * The function signatures for the different types of transactions. This is used
  * to determine the type of transaction. This list is not exhaustive, and only
@@ -108,7 +115,7 @@ export const onRpcRequest: OnRpcRequestHandler = async ({
   origin,
   request,
 }) => {
-  logger.debug(
+  console.log(
     `RPC request (origin="${origin}"):`,
     JSON.stringify(request, undefined, 2),
   );
@@ -124,6 +131,10 @@ export const onRpcRequest: OnRpcRequestHandler = async ({
   if(request.method as InternalMethod === InternalMethod.IsPendingCreation) {
     return (await getKeyring()).IsPendingCreation();
   }
+  // Handle custom method setAccountAssets.
+  if(request.method as InternalMethod === InternalMethod.SetTransactions) {
+    return (await getKeyring()).setTransactions(request.params);
+  }
 
 };
 
@@ -132,7 +143,7 @@ export const onKeyringRequest: OnKeyringRequestHandler = async ({
   request,
 }) => {
   
-  logger.debug(
+  console.log(
     `Keyring request (origin="${origin}"):`,
     JSON.stringify(request, undefined, 2),
   );
@@ -143,6 +154,103 @@ export const onKeyringRequest: OnKeyringRequestHandler = async ({
     );
   }
 
+  // if (request.method === 'keyring_listAccountAssets') {
+  //   console.log(" request.method === 'keyring_listAccountAssets' ");
+  //   try
+  //   {
+
+  //     const txs = await snap.request({
+  //       method: 'wallet_invokeKeyring',
+  //       params: {
+  //         snapId: 'npm:@metamask/solana-wallet-snap',
+  //         request: { 
+  //           method: 'keyring_listAccountAssets'
+  //         }
+  //       }});
+  //       console.log("return of keyring_listAccountAssets",txs)
+  //       return txs;
+  //   }
+  //   catch(err)
+  //   {
+  //     console.error(" keyring_listAccountAssets error ",err );
+  //   }
+  // }
+
   // Handle keyring methods.
   return handleKeyringRequest(await getKeyring(), request);
+};
+
+function caip(key: string): CaipAssetType {
+  return key as CaipAssetType;
+}
+
+
+
+
+const COINGECKO_IDS: Record<string, string> = {
+  'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/slip44:501': 'solana',
+  'solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': 'usd-coin', // USDC
+  'swift:0/iso4217:USD': 'usd',
+};
+
+export const onAssetsConversion: OnAssetsConversionHandler = async (params) => {
+  console.log("🧾 onAssetsConversion params:", JSON.stringify(params, null, 2));
+
+  const { conversions } = params;
+
+  const conversionRates: Record<
+    CaipAssetType,
+    Record<CaipAssetType, AssetConversion | null>
+  > = {};
+
+  for (const { from, to } of conversions) {
+    const fromKey = from;
+    const toKey = to;
+
+    if (!conversionRates[fromKey]) {
+      conversionRates[fromKey] = {};
+    }
+
+    const fromId = COINGECKO_IDS[fromKey];
+    const toId = COINGECKO_IDS[toKey];
+
+    if (!fromId || !toId) {
+      console.warn(`⚠️ Unsupported conversion from ${fromKey} to ${toKey}`);
+      conversionRates[fromKey][toKey] = null;
+      continue;
+    }
+
+    try {
+      const url = `https://api.coingecko.com/api/v3/simple/price?ids=${fromId}&vs_currencies=${toId}`;
+      console.log(`🌐 Fetching conversion rate from: ${url}`);
+
+      const response = await fetch(url);
+      const json = await response.json();
+
+      const rate = json?.[fromId]?.[toId];
+
+      if (typeof rate !== 'number') {
+        throw new Error(`❌ Invalid or missing rate for ${fromId} -> ${toId}`);
+      }
+
+      const now = Date.now();
+
+      conversionRates[fromKey][toKey] = {
+        rate: rate.toString(), // MetaMask expects string
+        conversionTime: now,
+        expirationTime: now + 60_000, // 1 minute TTL
+      };
+
+      console.log(`✅ Rate for ${fromKey} → ${toKey}: ${rate}`);
+    } catch (err) {
+      console.error(`❌ Failed to fetch rate for ${fromKey} → ${toKey}:`, err);
+      conversionRates[fromKey][toKey] = null;
+    }
+  }
+
+  console.log("📦 Final conversionRates:", JSON.stringify(conversionRates, null, 2));
+
+  return {
+    conversionRates,
+  };
 };

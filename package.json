@@ -41,12 +41,14 @@
     "@ethereumjs/util": "^8.0.5",
     "@metamask/eth-sig-util": "^7.0.1",
     "@metamask/keyring-api": "^18.0.0",
+    "@metamask/keyring-snap-client": "^5.0.0",
     "@metamask/keyring-snap-sdk": "^4.0.0",
-    "@metamask/snaps-types": "^3.0.0",
+    "@metamask/solana-wallet-snap": "^1.35.2",
     "@metamask/utils": "11.4.0",
     "@solana/kit": "^2.1.0",
     "@solana/spl-token": "^0.4.13",
     "@solana/web3.js": "^1.98.2",
+    "undici": "^7.11.0",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
@@ -58,6 +60,7 @@
     "@metamask/eslint-config-typescript": "^12.1.0",
     "@metamask/snaps-cli": "^3.0.0",
     "@metamask/snaps-sdk": "^9.0.0",
+    "@metamask/snaps-types": "^3.0.0",
     "@solana-program/token": "0.5.1",
     "@solana-program/token-2022": "^0.4.2",
     "@types/node": "^20.6.2",
