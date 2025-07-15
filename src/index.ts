@@ -131,11 +131,6 @@ export const onRpcRequest: OnRpcRequestHandler = async ({
   if(request.method as InternalMethod === InternalMethod.IsPendingCreation) {
     return (await getKeyring()).IsPendingCreation();
   }
-  // Handle custom method setAccountAssets.
-  if(request.method as InternalMethod === InternalMethod.SetTransactions) {
-    return (await getKeyring()).setTransactions(request.params);
-  }
-
 };
 
 export const onKeyringRequest: OnKeyringRequestHandler = async ({

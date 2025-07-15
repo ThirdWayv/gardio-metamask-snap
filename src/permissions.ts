@@ -2,7 +2,6 @@ import { KeyringRpcMethod } from '@metamask/keyring-api';
 
 export enum InternalMethod {
   IsPendingCreation   = 'snap.internal.isPendingCreation',
-  SetTransactions    = 'snap.internal.setTransactions',
 }
 
 
@@ -38,7 +37,6 @@ export const originPermissions = new Map<string, string[]>([
       KeyringRpcMethod.RejectRequest,
       // Custom methods
       InternalMethod.IsPendingCreation,
-      InternalMethod.SetTransactions,
     ],
   ],
   [

@@ -13,8 +13,6 @@ import {
   type Keyring,
   type KeyringAccount,
   type KeyringRequest,
-  type Pagination,
-  type Paginated,
   type Transaction,
 } from '@metamask/keyring-api';
 
@@ -31,29 +29,31 @@ import { isEvmChain, isUniqueAddress, throwError } from "./util";
 
 import type { CaipAssetType } from '@metamask/snaps-sdk';
 
-import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { Connection, PublicKey, LAMPORTS_PER_SOL, SignaturesForAddressOptions } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { clusterApiUrl } from "@solana/web3.js";
 import { CaipAssetTypeStruct } from '@metamask/keyring-api'; // or your path
+
+import bs58 from 'bs58';
 
 
 const RPC_URL = 'https://floral-snowy-asphalt.solana-mainnet.quiknode.pro/3e073b0bc4a43256ee2254f4ec81eed0f2a66a03/';
-
-const CHAIN_ID = 'solana:mainnet-beta';
 
 import {
   ConfirmedSignatureInfo,
   ParsedTransactionWithMeta,
   ParsedInstruction,
-  PartiallyDecodedInstruction,
 } from '@solana/web3.js';
 
 
-
-type ListAccountTransactionsResponse = {
-  data: Transaction[];
-  next: string | null;
-};
+enum KnownCaip19Id {
+  SolMainnet = `${SolScope.Mainnet}/slip44:501`,
+  SolDevnet = `${SolScope.Devnet}/slip44:501`,
+  SolTestnet = `${SolScope.Testnet}/slip44:501`,
+  UsdcMainnet = `${SolScope.Mainnet}/token:EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`,
+  UsdcDevnet = `${SolScope.Devnet}/token:4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`,
+  EurcMainnet = `${SolScope.Mainnet}/token:HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr`,
+  EurcDevnet = `${SolScope.Devnet}/token:HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr`,
+}
 
 type SolanaAccountInfo = {
   txs: Transaction[], 
@@ -326,45 +326,144 @@ export class SimpleKeyring implements Keyring {
     await this.#emitEvent(KeyringEvent.RequestRejected, { id });
   }
 
-  async getAccountAssets(accountAddress: string, rpcUrl: string): Promise<CaipAssetType[]> {
-  const CHAIN_ID = 'solana:mainnet-beta';
-  const assets: CaipAssetType[] = [];
 
-  const connection = new Connection(rpcUrl, 'confirmed');
-  const publicKey = new PublicKey(accountAddress);
 
-  // 1️⃣ Native SOL
-  const lamports = await connection.getBalance(publicKey);
-  if (lamports > 0) {
-    const nativeAsset = `${CHAIN_ID}/native:SOL` as CaipAssetType;
-    CaipAssetTypeStruct.assert(nativeAsset);
-    assets.push(nativeAsset);
-  }
 
-  // 2️⃣ SPL Tokens
-  const tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
-    programId: TOKEN_PROGRAM_ID,
-  });
-
-  for (const { account } of tokenAccounts.value) {
-    const info = (account.data as any).parsed.info;
-    const mint = info.mint;
-    const uiAmount = info.tokenAmount.uiAmount;
-
-    if (uiAmount && uiAmount > 0) {
-      const tokenAsset = `${CHAIN_ID}/token:${mint}` as CaipAssetType;
-      try {
-        CaipAssetTypeStruct.assert(tokenAsset);
-        assets.push(tokenAsset);
-      } catch (e) {
-        console.warn(`Invalid CAIP format for token: ${tokenAsset}`);
-      }
+  #isValidSolanaAddress(address: string): boolean {
+    try {
+      const decoded = bs58.decode(address);
+      return decoded.length === 32;
+    } catch {
+      return false;
     }
   }
-  
-  console.error("assets", assets);
 
-  return assets;
+
+/**
+ * Fetches the latest parsed transactions for a given Solana address.
+ *
+ * @param address - The base58-encoded Solana address.
+ * @param limit - Number of transactions to fetch (default: 10).
+ * @param before - Optional signature to paginate before.
+ * @param rpcUrl - The Solana RPC endpoint to use.
+ * @returns An array of parsed transactions.
+ */
+async fetchLatestAddressTransactions(
+  address: string,
+  limit = 10,
+  before: string | null,
+  rpcUrl: string,
+  accountId: string, // UUIDv4
+): Promise<Transaction[]> {
+  if (!this.#isValidSolanaAddress(address)) {
+    throw new Error('Invalid Solana address');
+  }
+
+  const connection = new Connection(rpcUrl, 'confirmed');
+  const pubkey = new PublicKey(address);
+  const options: { limit: number; before?: string } = { limit };
+  if (before) options.before = before;
+
+  const signatures: ConfirmedSignatureInfo[] = await connection.getSignaturesForAddress(pubkey, options);
+  if (!signatures.length) return [];
+
+  const parsedTxs: (ParsedTransactionWithMeta | null)[] = await connection.getParsedTransactions(
+    signatures.map((sig) => sig.signature),
+    { maxSupportedTransactionVersion: 0 },
+  );
+
+  const chainId = SolScope.Mainnet; // or devnet, testnet, etc.
+
+  const txs: Transaction[] = parsedTxs
+    .map((tx, i) => {
+      const sigInfo = signatures[i];
+      if (!tx || !sigInfo) return null;
+
+      const signature = sigInfo.signature;
+      const blockTime = tx.blockTime ?? null;
+      const fee = tx.meta?.fee ?? 0;
+      const status: Transaction['status'] = tx.meta?.err ? 'failed' : 'confirmed';
+
+      const message = tx.transaction.message;
+      const feePayer = message.accountKeys[0]?.pubkey?.toBase58?.() || address;
+
+      // Default: unknown tx
+      let type: Transaction['type'] = 'unknown';
+
+      const from: Transaction['from'] = [];
+      const to: Transaction['to'] = [];
+
+      for (const ix of message.instructions as ParsedInstruction[]) {
+        if (
+          ix.program === 'system' &&
+          ix.parsed?.type === 'transfer' &&
+          ix.parsed.info.source &&
+          ix.parsed.info.destination &&
+          ix.parsed.info.lamports
+        ) {
+          type = ix.parsed.info.source === address ? 'send' : 'receive';
+
+          const lamports = ix.parsed.info.lamports;
+          const sol = (Number(lamports) / LAMPORTS_PER_SOL).toString();
+
+          from.push({
+            address: ix.parsed.info.source,
+            asset: {
+              unit: 'SOL',
+              type: KnownCaip19Id.SolMainnet,
+              amount: sol,
+              fungible: true,
+            },
+          });
+
+          to.push({
+            address: ix.parsed.info.destination,
+            asset: {
+              unit: 'SOL',
+              type: KnownCaip19Id.SolMainnet,
+              amount: sol,
+              fungible: true,
+            },
+          });
+        }
+      }
+
+      const transaction: Transaction = {
+        id: signature,
+        account: '255386e4-a327-46c6-9171-ff1d195ae18f',
+        chain: chainId,
+        type,
+        status,
+        timestamp: blockTime,
+
+        from,
+        to,
+
+        fees: [
+          {
+            type: 'base',
+            asset: {
+              unit: 'SOL',
+              type: KnownCaip19Id.SolMainnet,
+              amount: (fee / LAMPORTS_PER_SOL).toString(),
+              fungible: true,
+            },
+          },
+        ],
+
+        events: [
+          {
+            status,
+            timestamp: blockTime,
+          },
+        ],
+      };
+
+      return transaction;
+    })
+    .filter((tx): tx is Transaction => tx !== null);
+
+  return txs;
 }
 
   /**
@@ -382,127 +481,238 @@ export class SimpleKeyring implements Keyring {
     data: Transaction[];
     next: Signature | null;
   }> {
-  console.log(" listAccountTransactions accountId: ", accountId, "pagination: ", pagination);
-  console.log(" this.#state.solanaAccountInfo.txs", this.#state.solanaAccountInfo.txs);
-  
-  this.#state.solanaAccountInfo.txs.forEach((tx) => {
-    tx.account = accountId;
-  });
-  
-  console.log(" txs account", this.#state.solanaAccountInfo.txs[0]?.account);
+    const wallet = this.#state.wallets[accountId];
+    
+    if(wallet?.account == undefined){
+      throw new Error(`Account '${accountId}' not found`);
+    }
 
-  return {
-    data: this.#state.solanaAccountInfo.txs,
-    next: null,
-  };
-}
- 
- convertToScopedCaip(assetId: string): CaipAssetType {
-  const [chainPart, assetPart] = assetId.split('/'); // 'solana:mainnet' & 'slip44:501'
-  if (!chainPart || !assetPart) return assetId as CaipAssetType;
+    if (!this.#isValidSolanaAddress(wallet.account.address)) {
+      throw new Error('Invalid Solana address');
+    }
 
-  const [namespace, network] = chainPart.split(':');
-  if (namespace !== 'solana') return assetId as CaipAssetType;
+    const connection = new Connection(RPC_URL, 'confirmed');
+    const pubkey = new PublicKey(wallet.account.address);
+    const options: SignaturesForAddressOptions = { limit: pagination.limit };
 
-  let scoped: string | undefined;
+    const signatures: ConfirmedSignatureInfo[] = await connection.getSignaturesForAddress(pubkey, options);
+    if (!signatures.length)   
+    return {
+      data: [],
+      next: null,
+    };
 
-  switch (network) {
-    case 'mainnet':
-    case 'mainnet-beta':
-      scoped = SolScope.Mainnet;
-      break;
-    case 'devnet':
-      scoped = SolScope.Devnet;
-      break;
-    case 'testnet':
-      scoped = SolScope.Testnet;
-      break;
-    default:
-      return assetId as CaipAssetType;
-  }
+    const parsedTxs: (ParsedTransactionWithMeta | null)[] = await connection.getParsedTransactions(
+      signatures.map((sig) => sig.signature),
+      { maxSupportedTransactionVersion: 0 },
+    );
 
-  return `${scoped}/${assetPart}` as CaipAssetType;
-}
+    const txs: Transaction[] = parsedTxs
+      .map((tx, i) => {
+        const sigInfo = signatures[i];
+        if (!tx || !sigInfo) return null;
 
-convertToSymbolicCaip(assetId: CaipAssetType): CaipAssetType {
-  const [chainPart, assetPart] = assetId.split('/');
-  const [namespace, cluster] = chainPart.split(':');
+        const signature = sigInfo.signature;
+        const blockTime = tx.blockTime ?? null;
+        const fee = tx.meta?.fee ?? 0;
+        const status: Transaction['status'] = tx.meta?.err ? 'failed' : 'confirmed';
 
-  if (namespace !== 'solana') return assetId;
+        const message = tx.transaction.message;
 
-  let symbolic = '';
+        // Default: unknown tx
+        let type: Transaction['type'] = 'unknown';
 
-  switch (cluster) {
-    case SolScope.Mainnet.split(':')[1]:
-      symbolic = 'mainnet';
-      break;
-    case SolScope.Devnet.split(':')[1]:
-      symbolic = 'devnet';
-      break;
-    case SolScope.Testnet.split(':')[1]:
-      symbolic = 'testnet';
-      break;
-    default:
-      return assetId;
-  }
+        const from: Transaction['from'] = [];
+        const to: Transaction['to'] = [];
 
-  return `solana:${symbolic}/${assetPart}` as CaipAssetType;
-}
+        for (const ix of message.instructions as ParsedInstruction[]) {
+          if (
+            ix.program === 'system' &&
+            ix.parsed?.type === 'transfer' &&
+            ix.parsed.info.source &&
+            ix.parsed.info.destination &&
+            ix.parsed.info.lamports
+          ) {
+            type = ix.parsed.info.source === wallet.account.address ? 'send' : 'receive';
 
-async getAccountBalances(
-  id: string,
-  assets: CaipAssetType[]
-): Promise<Record<CaipAssetType, Balance>> {
-  const result: Record<CaipAssetType, Balance> = {};
-  const storedBalances = this.#state.solanaAccountInfo?.balance ?? {};
+            const lamports = ix.parsed.info.lamports;
+            const sol = (Number(lamports) / LAMPORTS_PER_SOL).toString();
 
-  for (const assetId of assets) {
-    const symbolicAssetId = this.convertToSymbolicCaip(assetId);
-    const balance = storedBalances[symbolicAssetId];
+            from.push({
+              address: ix.parsed.info.source,
+              asset: {
+                unit: 'SOL',
+                type: KnownCaip19Id.SolMainnet,
+                amount: sol,
+                fungible: true,
+              },
+            });
 
-    result[assetId] = balance ?? {
-      amount: '0',
-      unit: 'UNKNOWN',
+            to.push({
+              address: ix.parsed.info.destination,
+              asset: {
+                unit: 'SOL',
+                type: KnownCaip19Id.SolMainnet,
+                amount: sol,
+                fungible: true,
+              },
+            });
+          }
+        }
+
+        const transaction: Transaction = {
+          id: signature,
+          account: accountId,
+          chain: SolScope.Mainnet,
+          type,
+          status,
+          timestamp: blockTime,
+
+          from,
+          to,
+
+          fees: [
+            {
+              type: 'base',
+              asset: {
+                unit: 'SOL',
+                type: KnownCaip19Id.SolMainnet,
+                amount: (fee / LAMPORTS_PER_SOL).toString(),
+                fungible: true,
+              },
+            },
+          ],
+
+          events: [
+            {
+              status,
+              timestamp: blockTime,
+            },
+          ],
+        };
+
+        return transaction;
+      })
+      .filter((tx): tx is Transaction => tx !== null);
+
+    return {
+      data: txs,
+      next: null,
     };
   }
-  console.log("getAccountBalances", result);
-  return result;
-}
 
 
-async listAccountAssets(accountId: string): Promise<CaipAssetType[]> {
-  try {
-    const assets = this.#state.solanaAccountInfo?.assets ?? [];
-
-    // Normalize each CAIP asset string to scoped version
-    const mapped = assets.map(this.convertToScopedCaip);
-
-    console.log("listAccountAssets mapped:", mapped);
-    return mapped;
-
-  } catch (error: any) {
-    console.error("listAccountAssets error:", error);
-    throw error;
+  // Symbol lookup for tokens
+  #lookupSymbol(mint: string): string {
+    const map: Record<string, string> = {
+      'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v': 'USDC',
+      'HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpKcFu7uBEDKtr': 'EURC',
+      'HeLp6NuQkmYB4pYWo2zYs22mESHXPQYzXbB8n4V98jwC': 'AI16Z',
+    };
+    return map[mint] ?? 'TOKEN';
   }
-}
+
+  async getAccountBalances(
+    accountId: string,
+    assets: CaipAssetType[]
+  ): Promise<Record<CaipAssetType, Balance>> {
+
+    const wallet = this.#state.wallets[accountId];
+      
+    if(wallet?.account == undefined){
+      throw new Error(`Account '${accountId}' not found`);
+    }
+
+    const result: Record<CaipAssetType, Balance> = {};
+    const pubkey = new PublicKey(wallet.account.address);
+    const connection = new Connection(RPC_URL, 'confirmed');
+
+    for (const caip19 of assets) {
+
+      const parts = caip19.split('/');
+      if (parts.length !== 2) continue;
+
+      const [chainId, assetId] = parts;
+      if (chainId !== SolScope.Mainnet) continue;
+
+      const assetParts = assetId.split(':');
+      if (assetParts.length !== 2) continue;
+
+      const type = assetParts[0];
+      const ref = assetParts[1];
+      if (!type || !ref) continue;
+
+      if (type === 'slip44' && ref === '501') {
+        const lamports = await connection.getBalance(pubkey);
+        result[caip19] = {
+          amount: (lamports / 1e9).toFixed(9),
+          unit: 'SOL',
+        };
+      }
+
+      if (type === 'token') {
+        const mint = new PublicKey(ref);
+        const tokenAccounts = await connection.getParsedTokenAccountsByOwner(pubkey, { mint });
+        const tokenAccount = tokenAccounts.value[0];
+
+        const amount = tokenAccount
+          ? tokenAccount.account.data.parsed.info.tokenAmount.uiAmountString
+          : '0';
+
+        result[caip19] = {
+          amount,
+          unit: this.#lookupSymbol(ref),
+        };
+      }
+    }
+
+    return result;
+  }
 
 
-  /**
-   * Returns the list of assets for the given account in all Solana networks.
-   * @param accountId - The id of the account.
-   * @returns CAIP-19 assets ids.
-   */
-  async setTransactions(params: {
-        Transactions: Transaction[];
-        Assets: CaipAssetType[];
-        Balance: Record<CaipAssetType, Balance>;
-      }) {
+  async listAccountAssets(accountId: string): Promise<CaipAssetType[]> {
     try {
-      console.error("setTransactions params", params);
-          this.#state.solanaAccountInfo.txs = params.Transactions;
-          this.#state.solanaAccountInfo.assets = params.Assets;
-          this.#state.solanaAccountInfo.balance = params.Balance;
+      
+      const wallet = this.#state.wallets[accountId];
+      const assets: CaipAssetType[] = [];
 
+      if(wallet?.account == undefined){
+        throw new Error(`Account '${accountId}' not found`);
+      }
+
+      const connection = new Connection(RPC_URL, 'confirmed');
+      const publicKey = new PublicKey(wallet?.account.address);
+
+      // Native SOL
+      const lamports = await connection.getBalance(publicKey);
+      if (lamports > 0) {
+        const nativeAsset = `${SolScope.Mainnet}/slip44:501` as CaipAssetType;
+        CaipAssetTypeStruct.assert(nativeAsset);
+        assets.push(nativeAsset);
+      }
+
+      // SPL Tokens
+      const tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
+        programId: TOKEN_PROGRAM_ID,
+      });
+
+      for (const { account } of tokenAccounts.value) {
+        const info = (account.data as any).parsed.info;
+        const mint = info.mint;
+        const uiAmount = info.tokenAmount.uiAmount;
+
+        if (uiAmount && uiAmount > 0) {
+          const tokenAsset = `${SolScope.Mainnet}/token:${mint}` as CaipAssetType;
+          try {
+            CaipAssetTypeStruct.assert(tokenAsset);
+            assets.push(tokenAsset);
+          } catch (e) {
+            console.warn(`Invalid CAIP format for token: ${tokenAsset}`);
+          }
+        }
+      }
+      
+      return assets;
     } catch (error: any) {
       throw error;
     }
