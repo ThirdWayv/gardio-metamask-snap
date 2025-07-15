@@ -254,7 +254,7 @@ export async function listAccountTransactions(
 
     return {
         data: txs,
-        next: null,
+        next: pagination.next ? pagination.next: null,
     };
 }
 
