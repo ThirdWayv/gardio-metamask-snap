@@ -22,7 +22,6 @@ import {
 } from "@metamask/keyring-api";
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
 import { type Json } from "@metamask/utils";
-import { v4 } from "uuid";
 
 import { saveState } from "./stateManagement";
 import { isEvmChain, isUniqueAddress, throwError } from "./util";
@@ -70,10 +69,11 @@ export class SimpleKeyring implements Keyring {
     options: Record<string, Json> = {}
   ): Promise<KeyringAccount> {
 
-    const id = globalThis.crypto.randomUUID();
     try {
-      if(options && options.address && options.name)
+      
+      if(options && options.address && options.name && options.networkType)
       {
+        const id = globalThis.crypto.randomUUID();
         const address: string = options.address as string;
         let account: KeyringAccount;
 
@@ -86,10 +86,10 @@ export class SimpleKeyring implements Keyring {
           case enumCoinType.ETHEREUM:
             {
               account = {
-                id: v4(), // Call `v4()` from `uuid`
+                id: id,
                 options: {},
                 address,
-                scopes: [EthScope.Eoa, EthScope.Mainnet, EthScope.Testnet],
+                scopes: [EthScope.Eoa],
                 methods: [
                   EthMethod.PersonalSign,
                   EthMethod.Sign,
@@ -105,11 +105,12 @@ export class SimpleKeyring implements Keyring {
           case enumCoinType.SOLANA:
             {
               account = {
-                id, 
+                id: id,
                 options: {},
                 address,
                 scopes: [SolScope.Mainnet, SolScope.Testnet, SolScope.Devnet],
                 methods: [
+                  SolMethod.SendAndConfirmTransaction,
                   SolMethod.SignAndSendTransaction,
                   SolMethod.SignTransaction,
                   SolMethod.SignMessage,
@@ -145,7 +146,7 @@ export class SimpleKeyring implements Keyring {
           pendingCreation: false,
         };
 
-        // await this.#saveState();
+        await this.#saveState();
 
         return account;
       }
