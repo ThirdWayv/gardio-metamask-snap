@@ -85,45 +85,41 @@ export async function getAccountBalances(
 
 
 export async function listAccountAssets(accountAddress: string): Promise<CaipAssetType[]> {
-    try {
-    
-        const assets: CaipAssetType[] = [];
-        const connection = new Connection(RPC_URL, 'confirmed');
-        const publicKey = new PublicKey(accountAddress);
+  try {
+    const assets: CaipAssetType[] = [];
+    const connection = new Connection(RPC_URL, 'confirmed');
+    const publicKey = new PublicKey(accountAddress);
 
-        // Native SOL
-        const lamports = await connection.getBalance(publicKey);
-        if (lamports > 0) {
-            const nativeAsset = `${SolScope.Mainnet}/slip44:501` as CaipAssetType;
-            CaipAssetTypeStruct.assert(nativeAsset);
-            assets.push(nativeAsset);
+    // Always include native SOL asset type (regardless of balance)
+    const nativeAsset = `${SolScope.Mainnet}/slip44:501` as CaipAssetType;
+    CaipAssetTypeStruct.assert(nativeAsset);
+    assets.push(nativeAsset);
+
+    // Get SPL Token accounts (non-zero balance only)
+    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
+      programId: TOKEN_PROGRAM_ID,
+    });
+
+    for (const { account } of tokenAccounts.value) {
+      const info = (account.data as any).parsed.info;
+      const mint = info.mint;
+      const uiAmount = info.tokenAmount.uiAmount;
+
+      if (uiAmount && uiAmount > 0) {
+        const tokenAsset = `${SolScope.Mainnet}/token:${mint}` as CaipAssetType;
+        try {
+          CaipAssetTypeStruct.assert(tokenAsset);
+          assets.push(tokenAsset);
+        } catch (e) {
+          console.warn(`Invalid CAIP format for token: ${tokenAsset}`);
         }
-
-        // SPL Tokens
-        const tokenAccounts = await connection.getParsedTokenAccountsByOwner(publicKey, {
-            programId: TOKEN_PROGRAM_ID,
-        });
-
-        for (const { account } of tokenAccounts.value) {
-            const info = (account.data as any).parsed.info;
-            const mint = info.mint;
-            const uiAmount = info.tokenAmount.uiAmount;
-
-            if (uiAmount && uiAmount > 0) {
-            const tokenAsset = `${SolScope.Mainnet}/token:${mint}` as CaipAssetType;
-            try {
-                CaipAssetTypeStruct.assert(tokenAsset);
-                assets.push(tokenAsset);
-            } catch (e) {
-                console.warn(`Invalid CAIP format for token: ${tokenAsset}`);
-            }
-            }
-        }
-    
-        return assets;
-    } catch (error: any) {
-        throw error;
+      }
     }
+
+    return assets;
+  } catch (error: any) {
+    throw error;
+  }
 }
 
 
