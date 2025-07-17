@@ -1358,7 +1358,7 @@ __metadata:
     "@metamask/snaps-cli": ^3.0.0
     "@metamask/snaps-sdk": ^9.0.0
     "@metamask/snaps-types": ^3.0.0
-    "@metamask/solana-wallet-snap": ^1.35.2
+    "@metamask/solana-wallet-snap": ^1.36.0
     "@metamask/utils": 11.4.0
     "@solana-program/token": 0.5.1
     "@solana-program/token-2022": ^0.4.2
@@ -2287,10 +2287,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@metamask/solana-wallet-snap@npm:^1.35.2":
-  version: 1.35.2
-  resolution: "@metamask/solana-wallet-snap@npm:1.35.2"
-  checksum: c4b28c0248659116f2b7c14f2b6696781a36fb9c2f2499d87808e46af50405407fb01378792d0b0fd0c6a3b42ac1acf6076f2e62442fe71bd75e8bba4e68bd5e
+"@metamask/solana-wallet-snap@npm:^1.36.0":
+  version: 1.36.0
+  resolution: "@metamask/solana-wallet-snap@npm:1.36.0"
+  checksum: ecad8f753c1daf289d101ef7928a0abdba3c875851d34a7c431933fbdfca7e60e96b4b6180557140a078f0a30d10dde0c5170afd5e67b33923dbbfa60471bd31
   languageName: node
   linkType: hard
 

@@ -20,7 +20,7 @@ import {
 import type { Signature } from '@solana/kit';
 import bs58 from 'bs58';
 
-const RPC_URL = 'https://floral-snowy-asphalt.solana-mainnet.quiknode.pro/3e073b0bc4a43256ee2254f4ec81eed0f2a66a03/';
+const RPC_URL =  process.env.SOLANA_EXPLORER;
 
 enum KnownCaip19Id {
   SolMainnet = `${SolScope.Mainnet}/slip44:501`,

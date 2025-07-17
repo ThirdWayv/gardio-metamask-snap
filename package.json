@@ -43,7 +43,7 @@
     "@metamask/keyring-api": "^18.0.0",
     "@metamask/keyring-snap-client": "^5.0.0",
     "@metamask/keyring-snap-sdk": "^4.0.0",
-    "@metamask/solana-wallet-snap": "^1.35.2",
+    "@metamask/solana-wallet-snap": "^1.36.0",
     "@metamask/utils": "11.4.0",
     "@solana/kit": "^2.1.0",
     "@solana/spl-token": "^0.4.13",
