@@ -1,4 +1,5 @@
 import { handleKeyringRequest } from '@metamask/keyring-snap-sdk';
+import { KeyringRpcMethod } from '@metamask/keyring-api';
 import type {
   OnKeyringRequestHandler,
   OnRpcRequestHandler,
@@ -9,6 +10,7 @@ import { InternalMethod, originPermissions } from './permissions';
 import { getState } from './stateManagement';
 
 import type { 
+  Json,
   OnTransactionHandler,
   OnSignatureHandler,
   OnAssetsConversionHandler
@@ -145,6 +147,16 @@ export const onKeyringRequest: OnKeyringRequestHandler = async ({
     throw new Error(
       `Origin '${origin}' is not allowed to call '${request.method}'`,
     );
+  }
+
+  // This is a temporal fix to prevent transaction functionality breaking
+  // TODO: Remove this once changes in MetaMask Keyring are in place
+  if (
+    request.method === KeyringRpcMethod.SubmitRequest &&
+    request.params &&
+    !('origin' in request.params)
+  ) {
+    (request.params as Record<string, Json>).origin = 'https://metamask.io';
   }
 
   // Handle keyring methods.
