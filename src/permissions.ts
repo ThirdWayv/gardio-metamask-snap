@@ -1,7 +1,13 @@
 import { KeyringRpcMethod } from '@metamask/keyring-api';
+import { onRpcRequest } from '.';
 
 export enum InternalMethod {
   IsPendingCreation   = 'snap.internal.isPendingCreation',
+}
+
+export enum RpcRequestMethod {
+  StartSendTransactionFlow = 'startSendTransactionFlow',
+  GetFeeForTransaction = 'getFeeForTransaction',
 }
 
 
@@ -20,6 +26,8 @@ export const originPermissions = new Map<string, string[]>([
       KeyringRpcMethod.ListAccountAssets,
       KeyringRpcMethod.ListAccountTransactions,
       KeyringRpcMethod.GetAccountBalances,
+      // RPC methods
+      RpcRequestMethod.StartSendTransactionFlow,
     ],
   ],
   [

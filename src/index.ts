@@ -6,7 +6,7 @@ import type {
 } from '@metamask/snaps-types';
 import { SimpleKeyring } from './keyring';
 import { logger } from './logger';
-import { InternalMethod, originPermissions } from './permissions';
+import { InternalMethod, originPermissions, RpcRequestMethod } from './permissions';
 import { getState } from './stateManagement';
 
 import type { 
@@ -130,6 +130,11 @@ export const onRpcRequest: OnRpcRequestHandler = async ({
   // Handle custom method IsPendingCreation.
   if(request.method as InternalMethod === InternalMethod.IsPendingCreation) {
     return (await getKeyring()).IsPendingCreation();
+  }
+  
+  // Handle custom method IsPendingCreation.
+  if(request.method as RpcRequestMethod === RpcRequestMethod.StartSendTransactionFlow) {
+    return (await getKeyring()).StartSendTransactionFlow(request.params);
   }
 };
 

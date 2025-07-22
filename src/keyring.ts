@@ -21,12 +21,12 @@ import {
   EthMethod,
 } from "@metamask/keyring-api";
 import { emitSnapKeyringEvent } from '@metamask/keyring-snap-sdk';
-import { type Json } from "@metamask/utils";
+import { type Json} from "@metamask/utils";
 
 import { saveState } from "./stateManagement";
 import { isEvmChain, isUniqueAddress, throwError } from "./util";
 
-import type { CaipAssetType } from '@metamask/snaps-sdk';
+import type { CaipAssetType, OnRpcRequestHandler } from '@metamask/snaps-sdk';
 import type { Signature } from '@solana/kit';
 import { listAccountAssets, listAccountTransactions, getAccountBalances } from './web3/solana';
 
@@ -350,6 +350,17 @@ export class SimpleKeyring implements Keyring {
 
   async IsPendingCreation(): Promise<boolean> {
     return Object.values(this.#state.wallets).some((wallet) => wallet.pendingCreation);
+  } 
+
+  async StartSendTransactionFlow(params: (Record<string, Json> | Json[]) | undefined): Promise<OnRpcRequestHandler> {
+
+    // TODO
+    // need to implement Transaction UI Form
+    // take the inputs of creating transaction from the user 
+    // redirect the user to the gardio Dapp by displaying dapp link
+    // sign the transaction in the dapp in gardio wallet then return it to metamask
+
+    throw new Error(`StartSendTransactionFlow Method is not suppported yet`);
   } 
 
   async #removePendingRequest(id: string): Promise<void> {
