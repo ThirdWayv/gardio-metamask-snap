@@ -1,7 +1,6 @@
 import type { SnapConfig } from '@metamask/snaps-cli';
 
 const environment = {
-  SOLANA_EXPLORER: process.env.SOLANA_EXPLORER,
   DAPP_ORIGIN_PRODUCTION: 'https://gardiometamasksnap.web.app/',
   DAPP_ORIGIN_DEVELOPMENT: 'http://localhost:8000/',
 }

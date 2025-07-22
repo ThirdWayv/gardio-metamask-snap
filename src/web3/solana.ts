@@ -19,8 +19,7 @@ import {
 } from '@solana/web3.js';
 import type { Signature } from '@solana/kit';
 import bs58 from 'bs58';
-
-const RPC_URL =  process.env.SOLANA_EXPLORER;
+import { throwError } from "../util";
 
 enum KnownCaip19Id {
   SolMainnet = `${SolScope.Mainnet}/slip44:501`,
@@ -37,55 +36,72 @@ export async function getAccountBalances(
     assets: CaipAssetType[]
 ): Promise<Record<CaipAssetType, Balance>> {
 
-    const result: Record<CaipAssetType, Balance> = {};
-    const pubkey = new PublicKey(accountAddress);
-    const connection = new Connection(RPC_URL, 'confirmed');
+    try
+    {
+        const RPC_URL =  process.env.SOLANA_EXPLORER;
+        if(RPC_URL == undefined)
+        {
+            throwError('undefined Solana RPC URL');
+        }
 
-    for (const caip19 of assets) {
+        const result: Record<CaipAssetType, Balance> = {};
+        const pubkey = new PublicKey(accountAddress);
+        const connection = new Connection(RPC_URL, 'confirmed');
 
-    const parts = caip19.split('/');
-    if (parts.length !== 2) continue;
+        for (const caip19 of assets) {
 
-    const [chainId, assetId] = parts;
-    if (chainId !== SolScope.Mainnet) continue;
+        const parts = caip19.split('/');
+        if (parts.length !== 2) continue;
 
-    const assetParts = assetId.split(':');
-    if (assetParts.length !== 2) continue;
+        const [chainId, assetId] = parts;
+        if (chainId !== SolScope.Mainnet) continue;
 
-    const type = assetParts[0];
-    const ref = assetParts[1];
-    if (!type || !ref) continue;
+        const assetParts = assetId.split(':');
+        if (assetParts.length !== 2) continue;
 
-    if (type === 'slip44' && ref === '501') {
-        const lamports = await connection.getBalance(pubkey);
-        result[caip19] = {
-        amount: (lamports / 1e9).toFixed(9),
-        unit: 'SOL',
-        };
+        const type = assetParts[0];
+        const ref = assetParts[1];
+        if (!type || !ref) continue;
+
+        if (type === 'slip44' && ref === '501') {
+            const lamports = await connection.getBalance(pubkey);
+            result[caip19] = {
+            amount: (lamports / 1e9).toFixed(9),
+            unit: 'SOL',
+            };
+        }
+
+        if (type === 'token') {
+            const mint = new PublicKey(ref);
+            const tokenAccounts = await connection.getParsedTokenAccountsByOwner(pubkey, { mint });
+            const tokenAccount = tokenAccounts.value[0];
+
+            const amount = tokenAccount
+            ? tokenAccount.account.data.parsed.info.tokenAmount.uiAmountString
+            : '0';
+
+            result[caip19] = {
+            amount,
+            unit: lookupSymbol(ref),
+            };
+        }
+        }
+
+        return result;
+    } catch (error) {
+      throwError((error as Error).message);
     }
-
-    if (type === 'token') {
-        const mint = new PublicKey(ref);
-        const tokenAccounts = await connection.getParsedTokenAccountsByOwner(pubkey, { mint });
-        const tokenAccount = tokenAccounts.value[0];
-
-        const amount = tokenAccount
-        ? tokenAccount.account.data.parsed.info.tokenAmount.uiAmountString
-        : '0';
-
-        result[caip19] = {
-        amount,
-        unit: lookupSymbol(ref),
-        };
-    }
-    }
-
-    return result;
 }
 
 
 export async function listAccountAssets(accountAddress: string): Promise<CaipAssetType[]> {
   try {
+
+    const RPC_URL =  process.env.SOLANA_EXPLORER;
+    if(RPC_URL == undefined)
+    {
+        throwError('undefined Solana RPC URL');
+    }
     const assets: CaipAssetType[] = [];
     const connection = new Connection(RPC_URL, 'confirmed');
     const publicKey = new PublicKey(accountAddress);
@@ -117,9 +133,9 @@ export async function listAccountAssets(accountAddress: string): Promise<CaipAss
     }
 
     return assets;
-  } catch (error: any) {
-    throw error;
-  }
+    } catch (error) {
+      throwError((error as Error).message);
+    }
 }
 
 
@@ -142,6 +158,12 @@ export async function listAccountTransactions(
 
     if (!isValidSolanaAddress(accountAddress)) {
         throw new Error('Invalid Solana address');
+    }
+
+    const RPC_URL =  process.env.SOLANA_EXPLORER;
+    if(RPC_URL == undefined)
+    {
+        throwError('undefined Solana RPC URL');
     }
 
     const connection = new Connection(RPC_URL, 'confirmed');
