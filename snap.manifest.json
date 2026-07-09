@@ -7,7 +7,7 @@
     "url": "git+https://github.com/ThirdWayv/gardio-metamask-snap.git"
   },
   "source": {
-    "shasum": "gPX3owIerDUbgiBDZA0PBjebcRf7h25U4564jESh3i8=",
+    "shasum": "I+ettUd46TJY001dquRdWYM5ss5T3qx9GccvtIYZ2DY=",
     "location": {
       "npm": {
         "filePath": "dist/bundle.js",
